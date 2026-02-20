@@ -51,6 +51,16 @@ def w(n):
     """Convert week number to x position (W1=0)."""
     return n - 1
 
+def text_width_est(text, fontsize=8.5):
+    """CJK-aware text width estimation in data units."""
+    total = 0
+    for ch in text:
+        if ord(ch) > 0x2E7F:
+            total += 0.062
+        else:
+            total += 0.040
+    return total * (fontsize / 8.5)
+
 # ── Data ──
 phases = [
     {
@@ -58,14 +68,10 @@ phases = [
         'weeks': 'W1',
         'md': 12,
         'tasks': [
-            ('BE-1', '벤치마크', 1, 1, 1.5, True),
-            ('BE-1', 'Lua설계리뷰', 1, 1.5, 2, False),
-            ('BE-2', 'Lua설계리뷰', 1, 1, 1.5, False),
-            ('BE-2', 'Key구조확정', 1, 1.5, 2, False),
-            ('DBA', '벤치마크지원', 2, 1, 1.7, False),
-            ('DBA', 'idx분석', 1, 1.7, 2, False),
-            ('SRE', 'Key정책확정', 1, 1, 1.3, False),
-            ('SRE', '대시보드설계', 3, 1.3, 2, False),
+            ('BE-1', '벤치마크·리뷰', 2, 1, 2, True),
+            ('BE-2', '리뷰·구조확정', 2, 1, 2, False),
+            ('DBA', '벤치마크·분석', 3, 1, 2, False),
+            ('SRE', '정책·대시보드', 4, 1, 2, False),
             ('QA', '테스트계획', 1, 1, 1.5, False),
         ]
     },
@@ -75,8 +81,7 @@ phases = [
         'md': 55,
         'tasks': [
             ('BE-1', 'gate_keeper Lua', 5, 2, 4, True),
-            ('BE-1', 'compensate Lua', 3, 4, 4.7, True),
-            ('BE-1', 'FF설정', 2, 4.7, 5.3, False),
+            ('BE-1', 'compensate·FF', 5, 4, 5.3, True),
             ('BE-1', 'Shadow준비', 4.5, 5.3, 6, False),
             ('BE-2', 'MC통합', 8, 2, 6, True),
             ('BE-2', '보상워커', 7, 2, 5, False),
@@ -108,8 +113,7 @@ phases = [
         'tasks': [
             ('BE-1', 'MC 100%전환', 3, 8, 9, True),
             ('BE-2', '인덱스삭제지원', 3, 8, 9, False),
-            ('DBA', '무중단삭제', 3, 8, 8.7, False),
-            ('DBA', '24h모니터링', 2, 8.7, 10, False),
+            ('DBA', '삭제·모니터링', 5, 8, 10, False),
             ('SRE', '7일안정화', 5, 8, 10, False),
             ('QA', '회귀테스트', 4, 8, 9, False),
         ]
@@ -133,7 +137,7 @@ milestones = [
     ('M5', '삭제완료', 10, False),
 ]
 
-critical_tasks = {'벤치마크', 'gate_keeper Lua', 'compensate Lua', 'MC통합',
+critical_tasks = {'벤치마크·리뷰', 'gate_keeper Lua', 'compensate·FF', 'MC통합',
                   'Shadow운영', 'MC 100%전환', '인덱스6개삭제'}
 
 # ── Build row layout ──
@@ -191,7 +195,7 @@ LEFT_COL_W = 1.6        # width for role labels
 CHART_LEFT = 0          # x=0 is W1 start
 CHART_RIGHT = 10.0      # x=10 is W10 end
 
-ax.set_xlim(-LEFT_COL_W - 0.3, CHART_RIGHT + 1.5)
+ax.set_xlim(-LEFT_COL_W - 0.5, CHART_RIGHT + 2.0)
 bottom_y = HEADER_Y - 0.8 - n_rows * ROW_H - 0.8
 ax.set_ylim(bottom_y, HEADER_Y + 1.8)
 ax.axis('off')
@@ -264,7 +268,7 @@ for idx, row in enumerate(all_rows):
                 va='bottom', ha='left')
         # MD badge
         if pd['md'] > 0:
-            md_x = -LEFT_COL_W + len(pd['name']) * 0.09 + 0.65
+            md_x = -LEFT_COL_W + sum(0.11 if ord(c) > 0x2E7F else 0.07 for c in pd['name']) + 0.65
             ax.text(md_x, sep_y + 0.04,
                     f"{pd['md']} MD",
                     fontsize=8.5, color=C['text3'],
@@ -284,8 +288,9 @@ for idx, row in enumerate(all_rows):
                 color=ROLE_COLORS.get(role, C['text2']),
                 va='center', ha='right')
 
-    # Task bars
-    for task in row['tasks']:
+    # Task bars - sorted for collision detection
+    sorted_tasks = sorted(row['tasks'], key=lambda t: t[3])
+    for ti, task in enumerate(sorted_tasks):
         role, name, md, start, end, _ = task
         x_bar = w(start)
         bar_width = end - start
@@ -308,17 +313,13 @@ for idx, row in enumerate(all_rows):
             md_str = f' ({md_val})'
 
         full_label = name + md_str
-
-        # Measure: ~0.078 units per char at fontsize 8.5
-        char_w = 0.078
-        text_est = len(full_label) * char_w
+        text_est = text_width_est(full_label, 8.5)
 
         if bar_width >= text_est + 0.15:
             # ── Text INSIDE bar ──
             tx = x_bar + bar_width / 2
             if is_crit:
-                # Red dot then label
-                dot_offset = len(full_label) * char_w / 2 + 0.12
+                dot_offset = text_est / 2 + 0.12
                 ax.text(tx - dot_offset, y_center, '\u25CF',
                         fontsize=5, color=C['critical'],
                         va='center', ha='center', zorder=4)
@@ -326,16 +327,39 @@ for idx, row in enumerate(all_rows):
                     fontsize=8.5, color='white', va='center', ha='center',
                     fontweight='medium', zorder=4)
         else:
-            # ── Text OUTSIDE bar (right) ──
+            # ── Text OUTSIDE bar (right) with collision detection ──
             tx = x_bar + bar_width + 0.08
-            if is_crit:
-                ax.text(tx, y_center, '\u25CF',
-                        fontsize=5, color=C['critical'],
-                        va='center', ha='left', zorder=4)
-                tx += 0.1
-            ax.text(tx, y_center, full_label,
-                    fontsize=8, color=C['text1'], va='center', ha='left',
-                    zorder=4)
+            crit_offset = 0.12 if is_crit else 0
+
+            # Available space before next bar
+            if ti + 1 < len(sorted_tasks):
+                next_start = w(sorted_tasks[ti + 1][3])
+                avail = next_start - tx - crit_offset - 0.08
+            else:
+                avail = CHART_RIGHT + 1.5 - tx - crit_offset
+
+            display_label = full_label
+            label_w = text_width_est(full_label, 8)
+            if label_w > avail > 0.25:
+                for cut in range(len(full_label), 0, -1):
+                    candidate = full_label[:cut] + '..'
+                    if text_width_est(candidate, 8) <= avail:
+                        display_label = candidate
+                        break
+            elif avail <= 0.25:
+                display_label = ''
+
+            if display_label:
+                if is_crit:
+                    ax.text(tx, y_center, '\u25CF',
+                            fontsize=5, color=C['critical'],
+                            va='center', ha='left', zorder=4)
+                    tx += crit_offset
+                ax.text(tx, y_center, display_label,
+                        fontsize=8, color=C['text1'], va='center', ha='left',
+                        zorder=4,
+                        bbox=dict(boxstyle='round,pad=0.04', facecolor='white',
+                                  edgecolor='none', alpha=0.85))
 
 # ── Legend bar ──
 leg_y = bottom_y + 0.15
