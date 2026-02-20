@@ -1,251 +1,291 @@
-#!/usr/bin/env python3
-"""
-Final Synthesized Milestone Timeline - t_coupon_issue INSERT 부하 개선
-=====================================================================
-Base: Dense (best features) + Executive card styling + Cross-validation fixes
-
-Cross-validation decisions:
-1. Dense's duration arrows retained (unique, high operational value)
-2. Dense's rollback annotations retained (operational context in chart)
-3. Dense's phase ribbon retained (proportional width, color-coded)
-4. Executive's card styling adapted (colored top stripe approach)
-5. Title fixed: "t_coupon_issue INSERT 부하 개선 — 마일스톤 & Exit Criteria"
-6. GATE marker enlarged and made more prominent
-7. Card font size increased for readability
-"""
-
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 from matplotlib.patches import FancyBboxPatch
-from matplotlib.lines import Line2D
 import numpy as np
 
-# ── Font & Global Config ──
+# ── Font & Global ──
 plt.rcParams['font.family'] = 'Apple SD Gothic Neo'
-plt.rcParams['axes.unicode_minus'] = False
 plt.rcParams['svg.fonttype'] = 'none'
+plt.rcParams['axes.unicode_minus'] = False
 
-# ── Colors ──
-MS_COLORS = {
-    'M0': '#E74C3C',   # Red (GATE)
-    'M1': '#3498DB',   # Blue
-    'M2': '#2ECC71',   # Green
-    'M3': '#E67E22',   # Orange
-    'M4': '#9B59B6',   # Purple
-    'M5': '#1ABC9C',   # Teal
+# ── Color System ──
+C = {
+    'bg': '#ffffff',
+    'surface': '#fafafa',
+    'text1': '#111827',
+    'text2': '#6b7280',
+    'text3': '#9ca3af',
+    'border': '#e5e7eb',
+    'divider': '#f3f4f6',
+    'accent': '#3b82f6',
+    'accent_light': '#eff6ff',
+    'critical': '#ef4444',
+    'critical_light': '#fef2f2',
 }
 
-PHASE_COLORS = {
-    'P0': '#E74C3C',
-    'P1': '#3498DB',
-    'P2': '#2ECC71',
-    'P3': '#E67E22',
-    'post': '#9B59B6',
-}
+PHASE_SEGS = [
+    ('P0 설계확정',    1, 2,  '#3b82f6', 0.20),
+    ('P1 개발',        2, 6,  '#1d4ed8', 0.15),
+    ('P2 Shadow검증',  6, 8,  '#f59e0b', 0.20),
+    ('P3 전환\xb7안정화', 8, 10, '#10b981', 0.20),
+    ('후속',           10, 11, '#9ca3af', 0.15),
+]
 
-BG_COLOR = '#FAFBFC'
-TEXT_COLOR = '#2C3E50'
-SUBTEXT_COLOR = '#7F8C8D'
-
-# ── Milestones ──
 milestones = [
     {
-        'id': 'M0', 'week': 1, 'date': '4/4 (W1)', 'title': '설계 확정',
-        'phase': 'P0', 'type': 'GATE',
+        'id': 'M0', 'name': '설계확정', 'week': 1, 'date': '4/4',
+        'is_gate': True, 'gate_label': 'GATE Go/No-Go',
         'exit': ['프로덕션 벤치마크 3.0x+ 달성', '설계 리뷰 완료'],
         'rollback': None,
     },
     {
-        'id': 'M1', 'week': 5, 'date': '5/2 (W5)', 'title': '개발 완료',
-        'phase': 'P1', 'type': 'PASS',
+        'id': 'M1', 'name': '개발완료', 'week': 5, 'date': '5/2',
+        'is_gate': False, 'gate_label': None,
         'exit': ['단위 테스트 통과', 'Feature Flag 동작', 'Shadow Mode 배포 가능'],
-        'rollback': 'FF OFF → DB 즉시 전환 (<1분)',
+        'rollback': 'FF OFF -> DB 즉시 전환 (<1분)',
     },
     {
-        'id': 'M2', 'week': 7, 'date': '5/16 (W7)', 'title': '검증 완료',
-        'phase': 'P2', 'type': 'PASS',
+        'id': 'M2', 'name': '검증완료', 'week': 7, 'date': '5/16',
+        'is_gate': False, 'gate_label': None,
         'exit': ['Shadow Mode 1주+ 무장애', 'TPS 3.4x+ 달성', 'QA 전수 통과'],
-        'rollback': 'Lua script: 이전 버전 배포 (<5분)',
+        'rollback': 'Lua script 이전 버전 배포 (<5분)',
     },
     {
-        'id': 'M3', 'week': 8, 'date': '5/23 (W8)', 'title': 'MC 전환 완료',
-        'phase': 'P3', 'type': 'PASS',
+        'id': 'M3', 'name': 'MC 전환완료', 'week': 8, 'date': '5/23',
+        'is_gate': False, 'gate_label': None,
         'exit': ['MC 100% + 48h 안정화', 'drift < 0.01%'],
-        'rollback': 'Redis MC: FF → DB 전환 (<1분)',
+        'rollback': 'Redis MC: FF -> DB 전환 (<1분)',
     },
     {
-        'id': 'M4', 'week': 9, 'date': '5/30 (W9)', 'title': '안정화 완료',
-        'phase': 'P3', 'type': 'PASS',
+        'id': 'M4', 'name': '안정화완료', 'week': 9, 'date': '5/30',
+        'is_gate': False, 'gate_label': None,
         'exit': ['7일간 Sev-0/Sev-1 0건', '변경 동결 기간 무사 통과'],
         'rollback': None,
     },
     {
-        'id': 'M5', 'week': 10, 'date': '6/6 (W10)', 'title': '인덱스 삭제 완료',
-        'phase': 'post', 'type': 'PASS',
+        'id': 'M5', 'name': '인덱스삭제완료', 'week': 10, 'date': '6/6',
+        'is_gate': False, 'gate_label': None,
         'exit': ['인덱스 6개 삭제 완료', 'INSERT TPS 3.4x+ 달성'],
         'rollback': '인덱스 재생성 (15~40분)',
     },
 ]
 
-phase_segments = [
-    ('P0: 설계 확정', 0.5, 1.5, 'P0'),
-    ('P1: 개발', 1.5, 5.5, 'P1'),
-    ('P2: Shadow 검증', 5.5, 7.5, 'P2'),
-    ('P3: 전환/안정화', 7.5, 9.5, 'P3'),
-    ('후속', 9.5, 10.5, 'post'),
-]
+# ── Figure ──
+fig, ax = plt.subplots(figsize=(24, 10))
+fig.set_facecolor(C['bg'])
+ax.set_facecolor(C['bg'])
+ax.axis('off')
 
-# ── Build Chart ──
-fig, ax = plt.subplots(figsize=(24, 11))
-fig.set_facecolor(BG_COLOR)
-ax.set_facecolor(BG_COLOR)
+# Coordinate system
+# x: week 1..10 mapped to 1..10
+# y: timeline at y=5, cards above (y>5) and below (y<5)
+TL_Y = 5.0  # timeline y
+PHASE_Y = TL_Y + 0.55  # phase bar y
 
-TIMELINE_Y = 0.48
-ax.set_xlim(0.0, 11.5)
-ax.set_ylim(-0.08, 1.08)
+ax.set_xlim(-0.5, 12.5)
+ax.set_ylim(0.0, 10.0)
 
-# ── Phase ribbon at top ──
-ribbon_y = 0.95
-ribbon_h = 0.06
-for label, x_start, x_end, phase_id in phase_segments:
-    color = PHASE_COLORS[phase_id]
-    rect = FancyBboxPatch(
-        (x_start, ribbon_y - ribbon_h / 2),
-        x_end - x_start,
-        ribbon_h,
-        boxstyle="round,pad=0.04",
-        facecolor=color, edgecolor='white', linewidth=2.5, alpha=0.88, zorder=3,
-    )
-    ax.add_patch(rect)
-    mid_x = (x_start + x_end) / 2
-    ax.text(mid_x, ribbon_y, label,
-            ha='center', va='center', fontsize=11, fontweight='bold',
-            color='white', zorder=4)
-
-# ── Main timeline line ──
-ax.plot([0.3, 11.2], [TIMELINE_Y, TIMELINE_Y],
-        color='#BDC3C7', linewidth=5, solid_capstyle='round', zorder=1)
-
-# ── Week tick marks ──
-for w in range(1, 11):
-    x = w + 0.5
-    ax.plot([x, x], [TIMELINE_Y - 0.018, TIMELINE_Y + 0.018],
-            color='#95A5A6', linewidth=1.5, zorder=2)
-    ax.text(x, TIMELINE_Y - 0.032, f'W{w}',
-            ha='center', va='top', fontsize=9.5, color=SUBTEXT_COLOR, zorder=3)
-
-# ── Draw milestones ──
-for i, ms in enumerate(milestones):
-    x = ms['week'] + 0.5
-    is_gate = ms['type'] == 'GATE'
-    ms_color = MS_COLORS[ms['id']]
-
-    # Diamond marker
-    marker_size = 550 if is_gate else 400
-    ax.scatter(x, TIMELINE_Y, marker='D', s=marker_size,
-               color=ms_color, zorder=6,
-               edgecolors='white', linewidth=3)
-
-    # Milestone ID inside diamond
-    ax.text(x, TIMELINE_Y, ms['id'],
-            ha='center', va='center', fontsize=9, fontweight='bold',
-            color='white', zorder=7)
-
-    # Date label
-    date_y = TIMELINE_Y - 0.055
-    ax.text(x, date_y, ms['date'],
-            ha='center', va='top', fontsize=10.5, fontweight='bold',
-            color=ms_color, zorder=5)
-
-    # Card positioning: alternate above/below
-    if i % 2 == 0:
-        card_y = 0.72
-        va_align = 'bottom'
-        line_y_start = TIMELINE_Y + 0.04
-        line_y_end = card_y - 0.01
-    else:
-        card_y = 0.24
-        va_align = 'top'
-        line_y_start = TIMELINE_Y - 0.04
-        line_y_end = card_y + 0.01
-
-    # Connector line
-    ax.plot([x, x], [line_y_start, line_y_end],
-            color=ms_color, linewidth=2, linestyle='-', alpha=0.5, zorder=2)
-
-    # Build card content
-    gate_badge = '  [GATE Go/No-Go]' if is_gate else ''
-    title_line = f'{ms["title"]}{gate_badge}'
-    separator = '\u2500' * 24
-    exit_items = '\n'.join([f'  \u2022 {c}' for c in ms['exit']])
-    card_text = f'{title_line}\n{separator}\n{exit_items}'
-
-    card_border_width = 2.5 if is_gate else 1.5
-
-    ax.text(x, card_y, card_text,
-            ha='center', va=va_align,
-            fontsize=10, color=TEXT_COLOR,
-            linespacing=1.6, zorder=5,
-            bbox=dict(boxstyle='round,pad=0.55', facecolor='white',
-                      edgecolor=ms_color, linewidth=card_border_width, alpha=0.97))
-
-    # Rollback annotation
-    if ms['rollback']:
-        rb_y = TIMELINE_Y + 0.065 if i % 2 != 0 else TIMELINE_Y - 0.075
-        rb_va = 'bottom' if i % 2 != 0 else 'top'
-        ax.text(x, rb_y, f'Rollback: {ms["rollback"]}',
-                ha='center', va=rb_va,
-                fontsize=8, color='#C0392B', fontstyle='italic', zorder=5,
-                bbox=dict(boxstyle='round,pad=0.25', facecolor='#FDEDEC',
-                          edgecolor='#E74C3C', linewidth=0.8, alpha=0.92))
-
-# ── Duration arrows between milestones ──
-for i in range(len(milestones) - 1):
-    x1 = milestones[i]['week'] + 0.5
-    x2 = milestones[i + 1]['week'] + 0.5
-    weeks_between = milestones[i + 1]['week'] - milestones[i]['week']
-    mid_x = (x1 + x2) / 2
-    arrow_y = TIMELINE_Y + 0.028
-    ax.annotate('', xy=(x2 - 0.2, arrow_y),
-                xytext=(x1 + 0.2, arrow_y),
-                arrowprops=dict(arrowstyle='<->', color='#7F8C8D', lw=1.0), zorder=2)
-    ax.text(mid_x, arrow_y + 0.012, f'{weeks_between}w',
-            ha='center', va='bottom', fontsize=8.5, fontweight='bold',
-            color='#7F8C8D', zorder=3)
+def wx(week):
+    return float(week)
 
 # ── Title ──
-ax.set_title('t_coupon_issue INSERT 부하 개선 — 마일스톤 & Exit Criteria',
-             fontsize=20, fontweight='bold', pad=30, color=TEXT_COLOR, loc='left')
+ax.text(0.3, 9.5,
+        't_coupon_issue INSERT 부하 개선',
+        fontsize=22, fontweight='bold', color=C['text1'],
+        va='bottom', ha='left')
+ax.text(0.3, 9.15,
+        'Milestone Timeline',
+        fontsize=13, color=C['text2'], va='bottom', ha='left')
 
-# ── Summary bar ──
-ax.text(0.5, 1.01, '10 Weeks (4/1 ~ 6/6)   |   6 Milestones   |   1 GATE Decision   |   성공 기준: INSERT TPS 3.4x+',
-        transform=ax.transAxes, ha='center', va='top',
-        fontsize=12, fontweight='bold', color='#2C3E50',
-        bbox=dict(boxstyle='round,pad=0.35', facecolor='#EBF5FB',
-                  edgecolor='#3498DB', alpha=0.9))
+ax.text(11.7, 9.5,
+        '6 Milestones  /  10 Weeks  /  1 GATE',
+        fontsize=11, color=C['text2'], va='bottom', ha='right')
+
+# ── Phase bar ──
+bar_h = 0.14
+for name, start, end, color, alpha in PHASE_SEGS:
+    xs, xe = wx(start), wx(end)
+    r = FancyBboxPatch(
+        (xs, PHASE_Y - bar_h/2), xe - xs, bar_h,
+        boxstyle="round,pad=0,rounding_size=0.04",
+        facecolor=color, alpha=alpha, edgecolor='none', zorder=2
+    )
+    ax.add_patch(r)
+    ax.text((xs + xe) / 2, PHASE_Y + 0.2, name,
+            fontsize=7.5, color=C['text2'], ha='center', va='bottom',
+            fontweight='medium')
+
+# ── Timeline ──
+ax.plot([wx(0.5), wx(11.0)], [TL_Y, TL_Y],
+        color=C['border'], linewidth=2.5, zorder=1, solid_capstyle='round')
+
+# Week tick marks & labels
+for wk in range(1, 11):
+    x = wx(wk)
+    ax.plot([x, x], [TL_Y - 0.06, TL_Y + 0.06],
+            color=C['border'], linewidth=1, zorder=2)
+    ax.text(x, TL_Y - 0.22, f'W{wk}',
+            fontsize=8, color=C['text3'], ha='center', va='top')
+
+# ── Duration labels between milestones ──
+for i in range(len(milestones) - 1):
+    m1, m2 = milestones[i], milestones[i + 1]
+    x1, x2 = wx(m1['week']), wx(m2['week'])
+    dur = m2['week'] - m1['week']
+    ax.text((x1 + x2) / 2, TL_Y + 0.22, f'{dur}w',
+            fontsize=8, color=C['text3'], ha='center', va='bottom',
+            fontweight='medium',
+            bbox=dict(boxstyle='round,pad=0.12', facecolor='white',
+                      edgecolor='none', alpha=0.9))
+
+# ── Cards: define positions carefully to avoid overlap ──
+# Card layout: specify (card_center_x, is_above) for each milestone
+# We manually tune x offsets to prevent overlap
+card_specs = [
+    # M0: above, at week 1
+    {'cx': 1.0, 'above': True},
+    # M1: below, at week 5
+    {'cx': 5.0, 'above': False},
+    # M2: above, at week 7
+    {'cx': 6.5, 'above': True},
+    # M3: below, at week 8
+    {'cx': 8.5, 'above': False},
+    # M4: above, at week 9
+    {'cx': 9.5, 'above': True},
+    # M5: below, at week 10.5
+    {'cx': 10.8, 'above': False},
+]
+
+CARD_W = 2.2
+
+for i, m in enumerate(milestones):
+    spec = card_specs[i]
+    node_x = wx(m['week'])
+    is_gate = m['is_gate']
+    is_above = spec['above']
+    card_cx = spec['cx']
+
+    # ── Node on timeline ──
+    node_size = 18 if is_gate else 15
+    node_color = C['critical'] if is_gate else C['accent']
+    ax.plot(node_x, TL_Y, 'o', markersize=node_size,
+            color=node_color, markeredgecolor='white',
+            markeredgewidth=2.5, zorder=5)
+    ax.text(node_x, TL_Y, m['id'],
+            fontsize=7.5 if is_gate else 7, color='white',
+            ha='center', va='center', fontweight='bold', zorder=6)
+
+    # Date below node
+    ax.text(node_x, TL_Y - 0.42, m['date'],
+            fontsize=9, color=node_color, ha='center', va='top',
+            fontweight='bold')
+
+    # ── Card dimensions ──
+    n_exit = len(m['exit'])
+    has_rb = m['rollback'] is not None
+    has_gate = m['gate_label'] is not None
+    line_h = 0.21
+    card_h = 0.25 + (1 if has_gate else 0) * 0.20 + 0.22 + n_exit * line_h + (0.25 if has_rb else 0) + 0.12
+
+    card_left = card_cx - CARD_W / 2
+    # Clamp to visible area
+    if card_left < 0.0:
+        card_left = 0.0
+    if card_left + CARD_W > 12.3:
+        card_left = 12.3 - CARD_W
+
+    if is_above:
+        card_bottom = TL_Y + 0.75
+        card_top = card_bottom + card_h
+    else:
+        card_top = TL_Y - 0.75
+        card_bottom = card_top - card_h
+
+    # ── Connector line ──
+    conn_top = TL_Y + 0.25 if is_above else TL_Y - 0.25
+    conn_bot = card_bottom if is_above else card_top
+    # Angled connector from node to card center
+    ax.plot([node_x, card_cx], [conn_top, conn_bot],
+            color=C['border'], linewidth=1, zorder=1)
+
+    # ── Card background ──
+    border_c = C['critical'] if is_gate else C['border']
+    bg_c = C['critical_light'] if is_gate else C['surface']
+
+    card_y_min = min(card_bottom, card_top)
+    card_rect = FancyBboxPatch(
+        (card_left, card_y_min), CARD_W, card_h,
+        boxstyle="round,pad=0.02,rounding_size=0.06",
+        facecolor=bg_c, edgecolor=border_c,
+        linewidth=1.2 if is_gate else 0.8,
+        zorder=3
+    )
+    ax.add_patch(card_rect)
+
+    # ── Card content ──
+    tx = card_left + 0.12
+    if is_above:
+        ty = card_top - 0.18
+    else:
+        ty = card_top - 0.18
+
+    # Title
+    title_c = C['critical'] if is_gate else C['text1']
+    ax.text(tx, ty, f"{m['id']}: {m['name']}",
+            fontsize=9.5, fontweight='bold', color=title_c,
+            va='top', ha='left', zorder=4)
+    ty -= 0.22
+
+    # Gate sub-label
+    if has_gate:
+        ax.text(tx, ty, m['gate_label'],
+                fontsize=7.5, color=C['critical'], fontweight='medium',
+                va='top', ha='left', zorder=4, fontstyle='italic')
+        ty -= 0.22
+
+    # Exit criteria header
+    ax.text(tx, ty, 'Exit Criteria:',
+            fontsize=7, color=C['text3'], va='top', ha='left',
+            fontweight='bold', zorder=4)
+    ty -= 0.2
+
+    # Exit items
+    for item in m['exit']:
+        disp = item if len(item) <= 26 else item[:24] + '...'
+        ax.text(tx + 0.08, ty, f'\u2022  {disp}',
+                fontsize=7.5, color=C['text2'], va='top', ha='left',
+                zorder=4)
+        ty -= line_h
+
+    # Rollback
+    if has_rb:
+        ty -= 0.06
+        rb = m['rollback']
+        if len(rb) > 30:
+            rb = rb[:28] + '...'
+        ax.text(tx, ty, f'Rollback: {rb}',
+                fontsize=7, color=C['critical'], va='top', ha='left',
+                fontstyle='italic', zorder=4)
 
 # ── Legend ──
-legend_elements = [
-    Line2D([0], [0], marker='D', color='w', markerfacecolor='#E74C3C',
-           markersize=14, markeredgecolor='white', markeredgewidth=1.5, label='GATE (Go/No-Go)'),
-    Line2D([0], [0], marker='D', color='w', markerfacecolor='#E67E22',
-           markersize=14, markeredgecolor='white', markeredgewidth=1.5, label='Milestone'),
-    mpatches.Patch(facecolor='#FDEDEC', edgecolor='#E74C3C',
-                   linewidth=0.8, label='Rollback Strategy'),
-]
-ax.legend(handles=legend_elements, loc='lower right', fontsize=11,
-          framealpha=0.95, edgecolor='#BDC3C7', fancybox=True,
-          bbox_to_anchor=(0.99, 0.01))
+leg_y = 0.45
+ax.plot(1.0, leg_y, 'o', markersize=10, color=C['critical'],
+        markeredgecolor='white', markeredgewidth=2)
+ax.text(1.3, leg_y, 'GATE Milestone', fontsize=9, color=C['text1'],
+        va='center')
 
-# ── Axes ──
-for spine in ax.spines.values():
-    spine.set_visible(False)
-ax.set_xticks([])
-ax.set_yticks([])
+ax.plot(3.2, leg_y, 'o', markersize=10, color=C['accent'],
+        markeredgecolor='white', markeredgewidth=2)
+ax.text(3.5, leg_y, 'Milestone', fontsize=9, color=C['text1'],
+        va='center')
 
-plt.tight_layout(pad=2.5)
-plt.savefig('/tmp/final_milestone.svg', format='svg', bbox_inches='tight', dpi=150)
+ax.text(5.0, leg_y, 'Rollback:',
+        fontsize=8, color=C['critical'], va='center', fontstyle='italic')
+ax.text(5.65, leg_y, 'Rollback plan available',
+        fontsize=9, color=C['text1'], va='center')
+
+plt.savefig('/tmp/agent_c_milestone.svg', format='svg', bbox_inches='tight',
+            facecolor=C['bg'], edgecolor='none', dpi=150)
 plt.close()
-print("OK: /tmp/final_milestone.svg")
+print("OK: /tmp/agent_c_milestone.svg")
